@@ -26,10 +26,17 @@ export function LoginForm({
     password: "",
   })
   const router = useRouter()
-  const searchParams = useSearchParams()
+  const [searchParams, setSearchParams] = useState<URLSearchParams | null>(null)
+
+  React.useEffect(() => {
+    // Only access searchParams on the client side
+    setSearchParams(new URLSearchParams(window.location.search))
+  }, [])
 
   // Show messages based on URL parameters
   React.useEffect(() => {
+    if (!searchParams) return
+    
     const success = searchParams.get("success")
     const error = searchParams.get("error")
     const message = searchParams.get("message")

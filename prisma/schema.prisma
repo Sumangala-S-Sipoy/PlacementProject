@@ -80,22 +80,107 @@ model EmailVerificationToken {
 
 // App-specific Models
 model Profile {
-  id          String   @id @default(cuid())
-  userId      String   @unique @map("user_id")
-  firstName   String?  @map("first_name")
-  lastName    String?  @map("last_name")
-  phone       String?
-  college     String?
-  course      String?
-  year        Int?
-  cgpa        Float?
-  skills      String[] @default([])
-  resume      String?
-  linkedin    String?
-  github      String?
-  portfolio   String?
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id        String   @id @default(cuid())
+  userId    String   @unique @map("user_id")
+  
+  // Profile Completion Status
+  isComplete Boolean @default(false) @map("is_complete")
+  completionStep Int @default(1) @map("completion_step") // 1-4 for multi-step form
+  
+  // Personal Information
+  firstName String? @map("first_name")
+  lastName  String? @map("last_name")
+  usn       String? @unique // University Seat Number
+  phone     String?
+  alternatePhone String? @map("alternate_phone")
+  dateOfBirth DateTime? @map("date_of_birth")
+  gender    Gender?
+  bloodGroup String? @map("blood_group")
+  profilePhoto String? @map("profile_photo") // URL to uploaded photo
+  
+  // Academic Information
+  college       String?
+  collegeName   String? @map("college_name") // Full college name
+  collegeCode   String? @map("college_code")
+  department    String?
+  course        String?
+  specialization String?
+  semester      Int?
+  year          Int?
+  cgpa          Float?
+  percentage    Float?
+  
+  // Previous Education
+  tenthBoard    String? @map("tenth_board")
+  tenthMarks    Float?  @map("tenth_marks")
+  tenthYear     Int?    @map("tenth_year")
+  twelfthBoard  String? @map("twelfth_board")
+  twelfthMarks  Float?  @map("twelfth_marks")
+  twelfthYear   Int?    @map("twelfth_year")
+  diplomaMarks  Float?  @map("diploma_marks")
+  diplomaYear   Int?    @map("diploma_year")
+  
+  // Address Information
+  currentAddress String? @map("current_address")
+  currentCity    String? @map("current_city")
+  currentState   String? @map("current_state")
+  currentPincode String? @map("current_pincode")
+  permanentAddress String? @map("permanent_address")
+  permanentCity    String? @map("permanent_city")
+  permanentState   String? @map("permanent_state")
+  permanentPincode String? @map("permanent_pincode")
+  sameAsCurrent Boolean @default(false) @map("same_as_current")
+  
+  // Parent/Guardian Information
+  fatherName    String? @map("father_name")
+  fatherPhone   String? @map("father_phone")
+  fatherOccupation String? @map("father_occupation")
+  motherName    String? @map("mother_name")
+  motherPhone   String? @map("mother_phone")
+  motherOccupation String? @map("mother_occupation")
+  guardianName  String? @map("guardian_name")
+  guardianPhone String? @map("guardian_phone")
+  guardianRelation String? @map("guardian_relation")
+  
+  // Professional Information
+  skills        String[] @default([])
+  certifications String[] @default([])
+  projects      Json?    // Array of project objects
+  internships   Json?    // Array of internship objects
+  achievements  String[] @default([])
+  hobbies       String[] @default([])
+  languages     String[] @default([])
+  
+  // Social Links
+  linkedin      String?
+  github        String?
+  portfolio     String?
+  leetcode      String?
+  codechef      String?
+  codeforces    String?
+  hackerrank    String?
+  
+  // Document Uploads
+  resume        String? // URL to uploaded resume
+  tenthMarksCard String? @map("tenth_marks_card")
+  twelfthMarksCard String? @map("twelfth_marks_card")
+  diplomaMarksCard String? @map("diploma_marks_card")
+  allSemesterMarksCards Json? @map("all_semester_marks_cards") // Array of URLs
+  
+  // Placement Preferences
+  expectedSalary Float? @map("expected_salary")
+  preferredLocations String[] @default([]) @map("preferred_locations")
+  jobType       JobType? @map("job_type")
+  workMode      WorkMode? @map("work_mode")
+  
+  // KYC and Verification
+  kycStatus     KYCStatus @default(PENDING) @map("kyc_status")
+  verifiedBy    String? @map("verified_by") // Admin ID who verified
+  verifiedAt    DateTime? @map("verified_at")
+  remarks       String?
+  
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -106,4 +191,34 @@ enum UserRole {
   STUDENT
   RECRUITER
   ADMIN
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  PREFER_NOT_TO_SAY
+}
+
+enum JobType {
+  FULL_TIME
+  PART_TIME
+  INTERNSHIP
+  CONTRACT
+  FREELANCE
+}
+
+enum WorkMode {
+  OFFICE
+  REMOTE
+  HYBRID
+  FLEXIBLE
+}
+
+enum KYCStatus {
+  PENDING
+  UNDER_REVIEW
+  VERIFIED
+  REJECTED
+  INCOMPLETE
 }
