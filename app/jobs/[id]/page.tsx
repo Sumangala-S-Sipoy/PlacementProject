@@ -363,6 +363,38 @@ export default function JobDetailPage() {
                         </CardContent>
                     </Card>
 
+                    {/* Skills */}
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Required Skills</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            {job.requiredSkills.length > 0 && (
+                                <div>
+                                    <p className="text-sm text-muted-foreground mb-2">Must have:</p>
+                                    <div className="flex flex-wrap gap-2">
+                                        {job.requiredSkills.map((skill, index) => (
+                                            <Badge key={index} variant="secondary">
+                                                {skill}
+                                            </Badge>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            {job.preferredSkills.length > 0 && (
+                                <div>
+                                    <p className="text-sm text-muted-foreground mb-2">Good to have:</p>
+                                    <div className="flex flex-wrap gap-2">
+                                        {job.preferredSkills.map((skill, index) => (
+                                            <Badge key={index} variant="outline">
+                                                {skill}
+                                            </Badge>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
                 </div>
 
                 {/* Sidebar */}

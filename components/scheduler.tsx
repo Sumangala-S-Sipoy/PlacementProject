@@ -24,12 +24,19 @@ interface ScheduleEvent {
   location: string
   type: 'interview' | 'test' | 'group-discussion' | 'presentation' | 'meeting' | 'webinar'
   company?: string
+  jobId?: string
   attendees: number
   maxAttendees?: number
   status: 'scheduled' | 'ongoing' | 'completed' | 'cancelled'
   isVisible: boolean
   createdBy: string
   isRegistered?: boolean
+}
+
+interface JobOption {
+  id: string
+  title: string
+  companyName: string
 }
 
 interface SchedulerProps {
@@ -53,6 +60,7 @@ export function Scheduler({ isAdmin = false, userId }: SchedulerProps) {
   const [editingEvent, setEditingEvent] = useState<ScheduleEvent | null>(null)
   const [viewFilter, setViewFilter] = useState<'all' | 'upcoming' | 'today'>('upcoming')
   const [typeFilter, setTypeFilter] = useState<string>('all')
+  const [availableJobs, setAvailableJobs] = useState<JobOption[]>([])
 
   const [newEvent, setNewEvent] = useState<Partial<ScheduleEvent>>({
     title: '',
@@ -63,6 +71,7 @@ export function Scheduler({ isAdmin = false, userId }: SchedulerProps) {
     location: '',
     type: 'meeting',
     company: '',
+    jobId: '',
     maxAttendees: 10,
     isVisible: true
   })
@@ -85,9 +94,29 @@ export function Scheduler({ isAdmin = false, userId }: SchedulerProps) {
     }
   }
 
+  // Fetch active jobs for the selector
+  const fetchJobs = async () => {
+    try {
+      const response = await fetch('/api/jobs?limit=100')
+      if (response.ok) {
+        const data = await response.json()
+        setAvailableJobs(
+          (data.jobs || []).map((j: any) => ({
+            id: j.id,
+            title: j.title,
+            companyName: j.companyName,
+          }))
+        )
+      }
+    } catch (error) {
+      console.error('Error fetching jobs:', error)
+    }
+  }
+
   useEffect(() => {
     fetchEvents()
-  }, [])
+    if (isAdmin) fetchJobs()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const resetNewEvent = () => {
     setNewEvent({
@@ -99,6 +128,7 @@ export function Scheduler({ isAdmin = false, userId }: SchedulerProps) {
       location: '',
       type: 'meeting',
       company: '',
+      jobId: '',
       maxAttendees: 10,
       isVisible: true
     })
@@ -149,7 +179,7 @@ export function Scheduler({ isAdmin = false, userId }: SchedulerProps) {
 
       if (response.ok) {
         const updatedEvent = await response.json()
-        setEvents(events.map(event => 
+        setEvents(events.map(event =>
           event.id === editingEvent.id ? updatedEvent : event
         ))
         setEditingEvent(null)
@@ -191,8 +221,8 @@ export function Scheduler({ isAdmin = false, userId }: SchedulerProps) {
 
       if (response.ok) {
         // Update the event to show increased attendee count and registration status
-        setEvents(events.map(event => 
-          event.id === eventId 
+        setEvents(events.map(event =>
+          event.id === eventId
             ? { ...event, attendees: event.attendees + 1, isRegistered: true }
             : event
         ))
@@ -215,8 +245,8 @@ export function Scheduler({ isAdmin = false, userId }: SchedulerProps) {
 
       if (response.ok) {
         // Update the event to show decreased attendee count and registration status
-        setEvents(events.map(event => 
-          event.id === eventId 
+        setEvents(events.map(event =>
+          event.id === eventId
             ? { ...event, attendees: event.attendees - 1, isRegistered: false }
             : event
         ))
@@ -266,10 +296,10 @@ export function Scheduler({ isAdmin = false, userId }: SchedulerProps) {
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
-    return date.toLocaleDateString('en-US', { 
-      weekday: 'short', 
-      month: 'short', 
-      day: 'numeric' 
+    return date.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric'
     })
   }
 
@@ -296,7 +326,7 @@ export function Scheduler({ isAdmin = false, userId }: SchedulerProps) {
             {isAdmin ? 'Manage placement events and schedules' : 'View your upcoming placement events'}
           </p>
         </div>
-        
+
         {isAdmin && (
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
             <DialogTrigger asChild>
@@ -312,7 +342,7 @@ export function Scheduler({ isAdmin = false, userId }: SchedulerProps) {
                   Add a new placement event to the schedule
                 </DialogDescription>
               </DialogHeader>
-              
+
               <div className="space-y-4">
                 <div>
                   <Label htmlFor="title">Event Title *</Label>
@@ -382,8 +412,8 @@ export function Scheduler({ isAdmin = false, userId }: SchedulerProps) {
 
                 <div>
                   <Label htmlFor="type">Event Type</Label>
-                  <Select 
-                    value={newEvent.type} 
+                  <Select
+                    value={newEvent.type}
                     onValueChange={(value) => setNewEvent({ ...newEvent, type: value as ScheduleEvent['type'] })}
                   >
                     <SelectTrigger>
@@ -393,6 +423,33 @@ export function Scheduler({ isAdmin = false, userId }: SchedulerProps) {
                       {eventTypes.map((type) => (
                         <SelectItem key={type.value} value={type.value}>
                           {type.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor="linkedJob">Link to Job (Optional)</Label>
+                  <Select
+                    value={newEvent.jobId || 'none'}
+                    onValueChange={(value) => {
+                      const selectedJob = availableJobs.find(j => j.id === value)
+                      setNewEvent({
+                        ...newEvent,
+                        jobId: value === 'none' ? '' : value,
+                        company: value === 'none' ? newEvent.company : selectedJob?.companyName || newEvent.company,
+                      })
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a job" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {availableJobs.map((job) => (
+                        <SelectItem key={job.id} value={job.id}>
+                          {job.title} — {job.companyName}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -486,7 +543,7 @@ export function Scheduler({ isAdmin = false, userId }: SchedulerProps) {
             const typeInfo = getEventTypeInfo(event.type)
             const isToday = isEventToday(event.date)
             const isUpcoming = isEventUpcoming(event.date, event.time)
-            
+
             return (
               <Card key={event.id} className={cn(
                 "transition-all duration-200 hover:shadow-md",
@@ -583,16 +640,16 @@ export function Scheduler({ isAdmin = false, userId }: SchedulerProps) {
                           </DialogContent>
                         </Dialog>
 
-                        <Button 
-                          variant="outline" 
+                        <Button
+                          variant="outline"
                           size="sm"
                           onClick={() => setEditingEvent(event)}
                         >
                           <Edit2 className="w-4 h-4" />
                         </Button>
-                        
-                        <Button 
-                          variant="outline" 
+
+                        <Button
+                          variant="outline"
                           size="sm"
                           onClick={() => handleDeleteEvent(event.id)}
                         >
@@ -604,8 +661,8 @@ export function Scheduler({ isAdmin = false, userId }: SchedulerProps) {
                     {!isAdmin && isUpcoming && (
                       <div className="flex gap-2 ml-4">
                         {event.isRegistered ? (
-                          <Button 
-                            variant="outline" 
+                          <Button
+                            variant="outline"
                             size="sm"
                             onClick={() => handleUnregisterFromEvent(event.id)}
                             className="text-red-600 hover:text-red-700"
@@ -614,8 +671,8 @@ export function Scheduler({ isAdmin = false, userId }: SchedulerProps) {
                             Unregister
                           </Button>
                         ) : (
-                          <Button 
-                            variant="outline" 
+                          <Button
+                            variant="outline"
                             size="sm"
                             onClick={() => handleRegisterForEvent(event.id)}
                             disabled={!!(event.maxAttendees && event.attendees >= event.maxAttendees)}
@@ -643,7 +700,7 @@ export function Scheduler({ isAdmin = false, userId }: SchedulerProps) {
               <DialogTitle>Edit Event</DialogTitle>
               <DialogDescription>Update event details</DialogDescription>
             </DialogHeader>
-            
+
             <div className="space-y-4">
               <div>
                 <Label htmlFor="edit-title">Event Title</Label>

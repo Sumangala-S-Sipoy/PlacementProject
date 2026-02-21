@@ -380,7 +380,7 @@ export default async function DashboardPage() {
                             {job.salary && (
                               <>
                                 <span className="text-xs text-muted-foreground">•</span>
-                                <span className="text-xs text-muted-foreground">{job.salary}</span>
+                                <span className="text-xs text-muted-foreground">{job.salary} LPA</span>
                               </>
                             )}
                           </div>

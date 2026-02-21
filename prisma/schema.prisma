@@ -13,12 +13,12 @@ model Account {
   type              String
   provider          String
   providerAccountId String  @map("provider_account_id")
-  refresh_token     String?
-  access_token      String?
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String?
+  id_token          String? @db.Text
   session_state     String?
   user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -56,6 +56,7 @@ model User {
   pushSubscriptions PushSubscription[]
   createdEvents     ScheduleEvent[]    @relation("CreatedEvents")
   sessions          Session[]
+  roundAttendances  RoundAttendance[]
 
   @@map("users")
 }
@@ -284,18 +285,25 @@ model ScheduleEvent {
   title        String
   description  String?
   date         DateTime
-  duration     Int
+  duration     Int // Duration in minutes
   location     String?
   type         EventType
   company      String?
   maxAttendees Int?
   status       EventStatus     @default(SCHEDULED)
   isVisible    Boolean         @default(true)
+
+  // Optional Job relation
+  jobId        String?         @map("job_id")
+  job          Job?            @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  // Relations
   createdBy    String
+  creator      User            @relation("CreatedEvents", fields: [createdBy], references: [id], onDelete: Cascade)
+  attendees    EventAttendee[]
+
   createdAt    DateTime        @default(now()) @map("created_at")
   updatedAt    DateTime        @updatedAt @map("updated_at")
-  attendees    EventAttendee[]
-  creator      User            @relation("CreatedEvents", fields: [createdBy], references: [id], onDelete: Cascade)
 
   @@map("schedule_events")
 }
@@ -317,37 +325,64 @@ model Job {
   id              String        @id @default(cuid())
   title           String
   companyId       String?       @map("company_id")
+  company         Company?      @relation(fields: [companyId], references: [id])
   companyName     String        @map("company_name")
   companyLogo     String?       @map("company_logo")
-  description     String
+  description     String        @db.Text
   location        String
+
+  // Job Category
   category        JobCategory   @default(FTE)
+
+  // Tier System
   tier            PlacementTier @default(TIER_3)
   isDreamOffer    Boolean       @default(false) @map("is_dream_offer")
+
+  // Job Type
   jobType         JobType       @map("job_type")
   workMode        WorkMode      @map("work_mode")
+
+  // Eligibility Criteria
   minCGPA         Float?        @map("min_cgpa")
-  allowedBranches String[]      @map("allowed_branches")
+  allowedBranches String[]      @default([]) @map("allowed_branches")
   eligibleBatch   String?       @map("eligible_batch")
-  maxBacklogs     Int?          @map("max_backlogs")
-  salary          Float?
+  maxBacklogs     Int?          @default(0) @map("max_backlogs")
+
+  // Salary Information
+  salary          Float? // In LPA
   minSalary       Float?        @map("min_salary")
   maxSalary       Float?        @map("max_salary")
+
+  // Skills and Requirements
   requiredSkills  String[]      @default([]) @map("required_skills")
   preferredSkills String[]      @default([]) @map("preferred_skills")
+
+  // Application Details
   deadline        DateTime?
   startDate       DateTime?     @map("start_date")
   noOfPositions   Int?          @default(1) @map("no_of_positions")
+  googleFormUrl   String?       @map("google_form_url")
+
+  // Status
   status          JobStatus     @default(ACTIVE)
   isVisible       Boolean       @default(true) @map("is_visible")
+
+  // Relations
   postedBy        String        @map("posted_by")
-  createdAt       DateTime      @default(now()) @map("created_at")
-  updatedAt       DateTime      @updatedAt @map("updated_at")
-  googleFormUrl   String?       @map("google_form_url")
   applications    Application[]
   updates         JobUpdate[]
   customFields    JobCustomField[]
-  company         Company?      @relation(fields: [companyId], references: [id])
+
+  // Round-based attendance relations
+  rounds           JobRound[]
+  driveSessions    DriveSession[]
+  roundAttendances RoundAttendance[]
+
+  // Schedule events linked to this job
+  scheduleEvents   ScheduleEvent[]
+
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
 
   @@map("jobs")
 }
@@ -377,7 +412,7 @@ model Notification {
   id        String           @id @default(cuid())
   userId    String           @map("user_id")
   title     String
-  message   String
+  message   String           @db.Text
   type      NotificationType
   isRead    Boolean          @default(false) @map("is_read")
   data        Json?
@@ -412,7 +447,7 @@ model Attendance {
   scannedAt DateTime? @map("scanned_at")
   scannedBy String?   @map("scanned_by")
   location  String?
-  notes     String?
+  notes     String?   @db.Text
   createdAt DateTime  @default(now()) @map("created_at")
 
   @@index([studentId])
@@ -420,6 +455,80 @@ model Attendance {
   @@index([eventId])
   @@index([qrCode])
   @@map("attendances")
+}
+
+// =============================================
+// Round-Based Attendance System Models
+// =============================================
+
+// Dynamic rounds per job (Aptitude, Technical, GD, HR, Custom)
+model JobRound {
+  id        String  @id @default(cuid())
+  jobId     String  @map("job_id")
+  name      String  // e.g., "Aptitude", "Technical", "GD", "HR", or custom
+  order     Int     // 1, 2, 3... determines sequence
+  isRemoved Boolean @default(false) @map("is_removed")
+
+  job       Job          @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  sessions  DriveSession[]
+  attendances RoundAttendance[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([jobId, order])
+  @@index([jobId])
+  @@map("job_rounds")
+}
+
+// Session per round - controls when QR scanning is active
+model DriveSession {
+  id        String        @id @default(cuid())
+  jobId     String        @map("job_id")
+  roundId   String        @map("round_id")
+  status    SessionStatus @default(ACTIVE)
+  startTime DateTime      @default(now()) @map("start_time")
+  endTime   DateTime?     @map("end_time")
+  createdBy String        @map("created_by") // Admin who created this session
+
+  job       Job              @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  round     JobRound         @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  attendances RoundAttendance[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([jobId])
+  @@index([roundId])
+  @@index([status])
+  @@map("drive_sessions")
+}
+
+// Round-based attendance per student
+model RoundAttendance {
+  id              String           @id @default(cuid())
+  userId          String           @map("user_id")
+  jobId           String           @map("job_id")
+  roundId         String           @map("round_id")
+  sessionId       String           @map("session_id")
+  markedByAdminId String           @map("marked_by_admin_id")
+  markedAt        DateTime         @default(now()) @map("marked_at")
+  status          AttendanceResult @default(ATTENDED)
+
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job     Job          @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  round   JobRound     @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  session DriveSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, roundId]) // One attendance per student per round
+  @@index([userId])
+  @@index([jobId])
+  @@index([roundId])
+  @@index([sessionId])
+  @@map("round_attendances")
 }
 
 model Company {
@@ -445,7 +554,7 @@ model Placement {
   salary        Float
   companyName   String        @map("company_name")
   isException   Boolean       @default(false) @map("is_exception")
-  exceptionNote String?       @map("exception_note")
+  exceptionNote String?       @map("exception_note") @db.Text
   createdAt     DateTime      @default(now()) @map("created_at")
   updatedAt     DateTime      @updatedAt @map("updated_at")
   user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -460,7 +569,7 @@ model JobUpdate {
   id        String   @id @default(cuid())
   jobId     String   @map("job_id")
   title     String
-  message   String
+  message   String   @db.Text
   createdBy String   @map("created_by")
   createdAt DateTime @default(now()) @map("created_at")
   job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
@@ -661,10 +770,22 @@ enum NotificationType {
 }
 
 enum PlacementTier {
-  TIER_3
-  TIER_2
-  TIER_1
-  DREAM
+  TIER_3 // <= 5 LPA
+  TIER_2 // > 5 LPA and <= 9 LPA  
+  TIER_1 // > 9 LPA
+  DREAM  // > 10 LPA, admin-decided
+}
+
+enum SessionStatus {
+  ACTIVE
+  TEMP_CLOSED
+  PERM_CLOSED
+}
+
+enum AttendanceResult {
+  ATTENDED
+  PASSED
+  FAILED
 }
 
 model JobCustomField {
